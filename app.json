@@ -21,13 +21,28 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.divine_naman.ingrid"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Camera Access!"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e32efae3-ec5d-40da-81fb-4e40db5e5c66"
+      }
     }
-  },
-  plugins: [
-    ["expo-camera", { "cameraPermission": "Allow Camera Access!" }]
-  ]
+  }
 }

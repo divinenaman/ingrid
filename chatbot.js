@@ -7,6 +7,8 @@ const SESSION_INIT_PROMPT = `You are nutritionist and a health expert graduated 
 Help him understand below image with info, alternatives, limits.`
 
 function startSession(vision = false) {
+  console.log("start chat session :", vision);
+
   const model = genAI.getGenerativeModel({ model: vision ? "gemini-pro-vision" : "gemini-pro" }); 
   
   const history = 
@@ -17,7 +19,7 @@ function startSession(vision = false) {
       , parts: "Sure, I understood the instructions and will follow it accurately."
       }
     ]
-  const sess = model.startChat({ history });
+  const sess = vision ? model : model.startChat({ history });
 
   return {
     text: !vision ? sess : null,
@@ -37,16 +39,27 @@ async function sendTextMsg(bot, text) {
   return t;
 }
 
-async function sendImgMsg(bot, imagePath) {
+async function sendBase64ImgMsg(bot, base64String) {
   if (!bot?.vision) return "bot.vision not found";
 
   console.log("gemini vision : ");
+  
+  const imagePart = {
+    inlineData: {
+      data: base64String,
+      mimeType: "image/png"
+    }
+  }
+  try {
+    const res = await bot.vision.generateContent([SESSION_INIT_PROMPT, imagePart]);
+    const response = await res.response;
+    const t = response.text();
 
-  const res = await bot.vision.generateContent([imgToPart(imagePath)]);
-  const response = await res.response;
-  const t = response.text();
-
-  return t; 
+    return t;
+  } catch (e) {
+    console.log("sendBase64ImaMsg error: ", e, SESSION_INIT_PROMPT.length, " + ", base64String.length);
+    return "error";
+  } 
 }
 
 function imgToPart(path) {
@@ -55,4 +68,4 @@ function imgToPart(path) {
   return ""
 }
 
-export default { startSession, sendTextMsg, sendImgMsg };
+export default { startSession, sendTextMsg, sendBase64ImgMsg };

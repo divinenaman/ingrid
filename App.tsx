@@ -1,19 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
-import { Camera, CameraType } from 'expo-camera';
+import { Camera, CameraType, ImageType } from 'expo-camera';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import { Image } from "expo-image";
 import Chat from "./chatbot";
 
 export default function App() {
+  const bot = useRef<null | Camera>(Chat.startSession(true));
+
   const [permission, requestPermission] = Camera.useCameraPermissions();
   const [showCam, setShowCam] = useState(false);
+  const [img, setImg] = useState<null | string>(null);
+  const cameraRef = useRef(null);
+  const [chatRes, setChatRes] = useState<null | String>(null);
 
   useEffect(() => {
     console.log({ permission });
-    //    const sess = Chat.startSession();
-    //
-    //    Chat.sendTextMsg(sess, "Can you please summarize my previous instructions ?")
-    //      .then(x => { console.log(x); });
-    //
   }, [])
 
   const toggleCam = async () => {
@@ -26,14 +28,67 @@ export default function App() {
     setShowCam(true);
   }
 
-  const capture = () => {
+  const sendImgMsg = async (base64String) => {
+    if (!bot.current) {
+      console.log("bot not found!");
+      return;
+    }
+    setChatRes("Loading!!");
+    console.log("prompting..");
+    const res = await Chat.sendBase64ImgMsg(bot.current, base64String);
+    setChatRes(res);
+  }
+  
+  const compressImge = async (uri: string) => {
+    try {
+      const res = await manipulateAsync(
+        uri, 
+        [ { resize: { width: 640, height: 480 } } ],
+        { format: SaveFormat.PNG, base64: true }
+      );
+
+      return {
+        uri: res.uri
+      , base64: res.base64
+      }
+    } catch(e) {
+      console.log("compressImage error: ", e);
+      return null;
+    }
+  }
+
+  const capture = async () => {
     console.log("capture");
+    if (!cameraRef.current) {
+      console.log("camera ref not found!");
+      return;
+    }
+    
+    const res = await cameraRef.current.takePictureAsync({  base64: true, quality: 0, imageType: ImageType.png });
+
+    if (res?.uri) {
+      console.log("img uri: ", res.uri)
+      
+      const compressed = await compressImge(res.uri);
+      
+      console.log("compressed uri", compressed.uri);
+
+      if (compressed?.uri) {
+        setImg(compressed.uri);
+        sendImgMsg(compressed.base64);
+      }
+    }
+    setShowCam(false);
   }
 
   return (
     <View style={styles.container}>
       <ScrollView style={styles.chat} contentContainerStyle={styles.chatContent}>
-        <Text>Open up App.tsx to start working on your app!</Text>
+        <Text style={styles.lightText}>Your friendly neighborhood AI!</Text>
+        <Text style={styles.lightText}>Converse using Images!</Text>
+        {img && <Image source={img} style={styles.image} />}
+
+        {chatRes && <Text style={styles.lightText}>{chatRes}</Text>}
       </ScrollView>
       <TouchableOpacity style={styles.openCamera} onPress={toggleCam}>
         <Text style={styles.openCameraText}>
@@ -41,15 +96,7 @@ export default function App() {
         </Text>
       </TouchableOpacity>
       {showCam && <View style={styles.cameraContainer}>
-        <Camera style={styles.camera} type={CameraType.back}>
-          {/* <View style={styles.top}>
-            <TouchableOpacity onPress={toggleCam}>
-              <View style={styles.closeCam}>
-                <Text style={styles.closeCamText}>Close</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-          */}
+        <Camera style={styles.camera} type={CameraType.back} ref={cameraRef} ration="1:1">
           <View style={styles.bottom}>
             <TouchableOpacity onPress={capture}>
               <View style={styles.circle}></View>
@@ -68,6 +115,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 100
+  },
+  lightText: {
+    color: "#fff"
+  },
+  image: {
+    flex: 1,
+    width: "80%"
   },
   chat: {
     flex: 1,
