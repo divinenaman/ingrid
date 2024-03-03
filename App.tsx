@@ -4,8 +4,29 @@ import { Camera, CameraType, ImageType } from 'expo-camera';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { Image } from "expo-image";
 import Chat from "./chatbot";
+import DayTracker from "./DayTracker";
 
 export default function App() {
+  const [active, setActive] = useState("chat");
+
+  return (
+    <View style={[ styles.container, { paddingTop: 40 }]}>
+      <View style={{ flexDirection: "row", padding: 20 }}>
+        <TouchableOpacity onPress={() => setActive("chat")}>
+          <Text style={styles.lightText}>Chat</Text>
+        </TouchableOpacity>
+        <Text style={[styles.lightText, { paddingHorizontal: 10 }]}>|</Text>
+        <TouchableOpacity onPress={() => setActive("tracker")}>
+          <Text style={styles.lightText}>Track Day</Text>
+        </TouchableOpacity>
+      </View>
+      {active == "tracker" && <DayTracker />} 
+      {active == "chat" && <ChatFood />}
+    </View>
+  );
+}
+
+function ChatFood() {
   const bot = useRef<null | Camera>(Chat.startSession(true));
 
   const [permission, requestPermission] = Camera.useCameraPermissions();
@@ -86,7 +107,7 @@ export default function App() {
       <ScrollView style={styles.chat} contentContainerStyle={styles.chatContent}>
         <Text style={styles.lightText}>Your friendly neighborhood AI!</Text>
         <Text style={styles.lightText}>Converse using Images!</Text>
-        {img && <Image source={img} style={styles.image} />}
+        {img && <Image source={img} style={styles.image} contentFit="contain" />}
 
         {chatRes && <Text style={styles.lightText}>{chatRes}</Text>}
       </ScrollView>
@@ -97,6 +118,11 @@ export default function App() {
       </TouchableOpacity>
       {showCam && <View style={styles.cameraContainer}>
         <Camera style={styles.camera} type={CameraType.back} ref={cameraRef} ration="1:1">
+          <View style={styles.topRight}>
+            <TouchableOpacity onPress={toggleCam}>
+              <Text style={styles.lightText}>Close</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.bottom}>
             <TouchableOpacity onPress={capture}>
               <View style={styles.circle}></View>
@@ -114,14 +140,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 100
+    width: "100%"
   },
   lightText: {
     color: "#fff"
   },
   image: {
     flex: 1,
-    width: "80%"
+    width: 200,
+    height: 200
   },
   chat: {
     flex: 1,
@@ -130,6 +157,8 @@ const styles = StyleSheet.create({
     width: '100%'
   },
   chatContent: {
+    padding: 20,
+    paddingBottom: 30,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -140,12 +169,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center"
   },
-  top: {
+  topRight: {
     position: "absolute",
     top: 0,
     width: "100%",
     justifyContent: "center",
-    alignItems: "flex-end"
+    alignItems: "flex-end",
+    padding: 20
   },
   openCamera: {
     flex: 0,
