@@ -36,7 +36,7 @@ async function removeFromStore(key) {
 }
 
 
-export default function App() {
+export default function App({ lang }) {
   const bot = useRef<null | Camera>(Chat.startSession(true));
 
   const [permission, requestPermission] = Camera.useCameraPermissions();
@@ -51,6 +51,10 @@ export default function App() {
     getDayImages();
   }, []);
   
+  useEffect(() => {
+    bot.current = Chat.startSession(true, lang);
+  }, [ lang ]);
+
   useEffect(() => {
     console.log({images});
     storeImages();

@@ -11,9 +11,22 @@ const langs = ["english", "hindi"]
 export default function App() {
   const [active, setActive] = useState("chat");
   const [lang, setLang] = useState(0);
+  const [isSync, setIsSync] = useState(0);
+
+  async function sync() {
+    setIsSync(1);
+    Chat.syncPrompt();
+    console.log("sync complete");
+    setIsSync(0);
+  }
+  
+  useEffect(() => {
+    sync()
+  }, [])
 
   return (
     <View style={[ styles.container, { paddingTop: 40 }]}>
+      {isSync == 1 && <Text style={styles.lightText}>syncing...</Text>}
       <View style={{ flexDirection: "row", padding: 20 }}>
         <TouchableOpacity onPress={() => setActive("chat")}>
           <Text style={styles.lightText}>Chat</Text>
@@ -29,8 +42,8 @@ export default function App() {
           </Text>
         </TouchableOpacity>
       </View>
-      {active == "tracker" && <DayTracker lang={lang} />} 
-      {active == "chat" && <ChatFood lang={lang} />}
+      {active == "tracker" && <DayTracker lang={langs[lang]} />} 
+      {active == "chat" && <ChatFood lang={langs[lang]} />}
     </View>
   );
 }
@@ -46,7 +59,8 @@ function ChatFood({ lang }) {
 
   useEffect(() => {
     console.log({ permission });
-  }, [])
+    bot.current = Chat.startSession(true, lang);
+  }, [ lang ]);
 
   const toggleCam = async () => {
     if (showCam) {
