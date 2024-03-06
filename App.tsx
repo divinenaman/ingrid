@@ -1,13 +1,16 @@
 import { useEffect, useState, useRef } from "react";
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { Camera, CameraType, ImageType } from 'expo-camera';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { Image } from "expo-image";
 import Chat from "./chatbot";
 import DayTracker from "./DayTracker";
 
+const langs = ["english", "hindi"]
+
 export default function App() {
   const [active, setActive] = useState("chat");
+  const [lang, setLang] = useState(0);
 
   return (
     <View style={[ styles.container, { paddingTop: 40 }]}>
@@ -19,14 +22,20 @@ export default function App() {
         <TouchableOpacity onPress={() => setActive("tracker")}>
           <Text style={styles.lightText}>Track Day</Text>
         </TouchableOpacity>
+        
+        <TouchableOpacity style={{ paddingLeft: 20 }} onPress={() => setLang(i => (i + 1) % langs.length)}>
+          <Text style={[styles.lightText, styles.highlight]}>
+            {langs[lang]}
+          </Text>
+        </TouchableOpacity>
       </View>
-      {active == "tracker" && <DayTracker />} 
-      {active == "chat" && <ChatFood />}
+      {active == "tracker" && <DayTracker lang={lang} />} 
+      {active == "chat" && <ChatFood lang={lang} />}
     </View>
   );
 }
 
-function ChatFood() {
+function ChatFood({ lang }) {
   const bot = useRef<null | Camera>(Chat.startSession(true));
 
   const [permission, requestPermission] = Camera.useCameraPermissions();
@@ -211,5 +220,8 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     backgroundColor: "#191970",
     marginBottom: 10,
+  },
+  highlight: {
+    color: "#FF0000"
   }
 });
