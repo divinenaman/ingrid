@@ -4,8 +4,9 @@ const genAI = new GoogleGenerativeAI("");
 
 let SESSION_INIT_PROMPT = (l) => `You are nutritionist and a health expert graduated from Standford university. You give people easy to understand information around food along with healthy eating habits. You have helped many people lead a balanced diet. A friend has contacted you to help him with questions related to food. Please help him with any query he has, he doesn't know anything about being healthy. Please give answers as direct tips and suggestions with good explanation. Answer all the questions with an accurate resolution, take safe assumptions as required. Give actual numbers in easy to understand measurement like 2 tablespoon. Explain how much the meal makes up for the balanced diet and what you can eat for the rest of the day. At the last provide a summary with a direct answer to the question without any nuance.
 
-Help him understand below image with info, alternatives, limits. Use ${l} as the language to explain.`
+Help him understand below image/Description with info, alternatives, limits. Use ${l} as the language to explain.`
 
+const PROMPTS = { "one_shot_vision_active": SESSION_INIT_PROMPT };
 
 async function syncPrompt() {
   try {
@@ -13,10 +14,11 @@ async function syncPrompt() {
     const json = await res.json();
     
     console.log({ prompts: json });
-
-    if (json?.one_shot_vision_active) {
-      SESSION_INIT_PROMPT = (l) => json.one_shot_vision_active.replace("$lang", l);
-    } 
+    
+    Object.keys(json).forEach(x => { 
+        PROMPTS[x] = (l) => json[x].replace("$lang", l);
+      }
+    )
   } catch(e) {
     console.log("sync prompt :", e);
   }
@@ -25,29 +27,32 @@ async function syncPrompt() {
 function startSession(vision = false, lang = "english") {
   console.log("start chat session :", vision);
 
-  const model = genAI.getGenerativeModel({ model: vision ? "gemini-pro-vision" : "gemini-pro" }); 
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
   
   const history = 
     [ { role: "user"
-      , parts: SESSION_INIT_PROMPT 
+      , parts: PROMPTS["one_shot_vision_active"](lang)
       }
     , { role: "model"
       , parts: "Sure, I understood the instructions and will follow it accurately."
       }
     ]
-  const sess = vision ? model : model.startChat({ history });
 
   return {
-    text: !vision ? sess : null,
-    vision: vision ? sess : null,
+    text: model.startChat({history}),
+    vision: model,
     lang
   }
 }
 
-async function sendTextMsg(bot, text) {
+async function sendTextMsg(bot, text, prefix_prompt_key = null) {
   if (!bot?.text) return "bot.text not found";
   
   console.log("gemini text : ");
+  
+  if (prefix_prompt_key && Object.hasOwn(PROMPTS, prefix_prompt_key)) {
+    text = PROMPTS[prefix_prompt_key](bot.lang) + text;
+  }
 
   const res = await bot.text.sendMessage(text);
   const response = await res.response;
@@ -56,12 +61,19 @@ async function sendTextMsg(bot, text) {
   return t;
 }
 
-async function sendBase64ImgMsg(bot, base64String) {
+async function sendBase64ImgMsg(bot, base64String, promptKey = "one_shot_vision_active") {
   if (!bot?.vision) return "bot.vision not found";
 
   console.log("gemini vision :");
   
-  const initPrompt = SESSION_INIT_PROMPT(bot.lang);
+  
+  let prompt = PROMPTS["one_shot_vision_active"];
+
+  if (Object.hasOwn(PROMPTS, promptKey)) {
+    prompt = PROMPTS[promptKey];
+  } 
+  
+  const initPrompt = prompt(bot.lang);
   
   console.log("gemini init prompt :", initPrompt);
 
