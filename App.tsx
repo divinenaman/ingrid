@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput } from 'react-native';
-import { Camera, CameraType, ImageType } from 'expo-camera';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { Image } from "expo-image";
 import Chat from "./chatbot";
@@ -51,7 +51,7 @@ export default function App() {
 function ChatFood({ lang }) {
   const bot = useRef<null | Camera>(Chat.startSession(true));
 
-  const [permission, requestPermission] = Camera.useCameraPermissions();
+  const [permission, requestPermission] = useCameraPermissions();
   const [showCam, setShowCam] = useState(false);
   const [img, setImg] = useState<null | string>(null);
   const cameraRef = useRef(null);
@@ -108,7 +108,7 @@ function ChatFood({ lang }) {
       return;
     }
     
-    const res = await cameraRef.current.takePictureAsync({  base64: true, quality: 0, imageType: ImageType.png });
+    const res = await cameraRef.current.takePictureAsync({  base64: true, quality: 0, imageType: "png" });
 
     if (res?.uri) {
       console.log("img uri: ", res.uri)
@@ -140,7 +140,7 @@ function ChatFood({ lang }) {
         </Text>
       </TouchableOpacity>
       {showCam && <View style={styles.cameraContainer}>
-        <Camera style={styles.camera} type={CameraType.back} ref={cameraRef} ration="1:1">
+        <CameraView style={styles.camera} facing="back" ref={cameraRef} ration="1:1">
           <View style={styles.topRight}>
             <TouchableOpacity onPress={toggleCam}>
               <Text style={styles.lightText}>Close</Text>
@@ -151,7 +151,7 @@ function ChatFood({ lang }) {
               <View style={styles.circle}></View>
             </TouchableOpacity>
           </View>
-        </Camera>
+        </CameraView>
       </View>}
     </View>
   );

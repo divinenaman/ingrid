@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
-import { Camera, CameraType, ImageType } from 'expo-camera';
+import { CameraView, useCameraPermissions, ImageType } from 'expo-camera';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { Image } from "expo-image";
 import Chat from "./chatbot";
@@ -39,12 +39,13 @@ async function removeFromStore(key) {
 export default function App({ lang }) {
   const bot = useRef<null | Camera>(Chat.startSession(true));
 
-  const [permission, requestPermission] = Camera.useCameraPermissions();
+  const [permission, requestPermission] = useCameraPermissions();
   const [showCam, setShowCam] = useState(false);
   const [images, setImages] = useState<null | { time : string, uri: string }[]>(null);
   const cameraRef = useRef(null);
-  const [chatRes, setChatRes] = useState<null | String[]>(null);
-  const [loading, setLoading] = useState(false);
+  const [analyse, setAnalyse] = useState(false);
+  const [tracking, setTracking] = useState(false);
+  const [result, setResult] = useState("");
 
   useEffect(() => {
     console.log({ permission });
@@ -60,6 +61,11 @@ export default function App({ lang }) {
     storeImages();
   }, [images]);
 
+  useEffect(() => {
+    console.log("start analysis", images, analyse);
+    if (analyse) startAnalysis();
+  }, [analyse])
+
   const getStoreKey = () => {
     const t = new Date().toLocaleDateString();
     const key = `ingrid-${t}-images`.replaceAll("/", "-");
@@ -73,6 +79,7 @@ export default function App({ lang }) {
     if (storedImages) {
       try {
         const images = JSON.parse(storedImages); // expecting a array
+        console.log("stored images", images);
         setImages(images);
       } catch (e) {
         console.log("error while parsing store response ", e);
@@ -109,7 +116,7 @@ export default function App({ lang }) {
       return;
     }
     console.log("prompting..");
-    const res = await Chat.sendBase64ImgMsg(bot.current, base64String);
+    const res = await Chat.sendBase64ImgMsg(bot.current, base64String, "identity_meal");
     return res;
   }
   
@@ -145,33 +152,52 @@ export default function App({ lang }) {
       return null;
     }
   }
+  
+  const trackDay = async () => {
+    if (!images || images.length == 0) return;
+    setTracking(true);
+    
+    const meals = images.map((x, i) => x.info ? `Meal ${i + 1} :: Time : ${x.time}, Info: ${x.info}` : null).join("\n\n");
 
-  const analyse = async () => {
+    console.log("meals => ", meals);
+
+    const res = await Chat.sendTextMsg(bot.current, meals, "track_day");
+    
+    setResult(res ? res : "error");
+    setTracking(false);
+  }
+
+  const startAnalysis = async () => {
     if (!images) return;
-    const result = [];
+    
+    const copy = []
 
-    setLoading(true);
+    for (let i = 0; i < images.length; i++) {
+      try {  
+        console.log("analysing", img);
 
-    for (const img of images) {
-      try {
-        const imgBase64 = await imageBase64(img.uri);
+        const img = images[i];
         
-        if (!imageBase64) {
-          result.push("error");
+        if (img.info) {
+          copy.push(img);
           continue;
         }
 
+        const imgBase64 = await imageBase64(img.uri);
+        
+        if (!imageBase64) {
+          copy.push(img);
+          continue;
+        }
         const res = await sendImgMsg(imgBase64);
-        if (res) result.push(res);
-        else result.push("error"); 
+        copy.push({...img, info: res ? res : null });
       } catch (e) {
         console.log("error while analysing ", e);
-        result.push("error");
       }
     } 
     
-    setLoading(false);
-    setChatRes([...result]);
+    setAnalyse(false);
+    setImages([...copy]);
   }
 
   const capture = async () => {
@@ -181,7 +207,7 @@ export default function App({ lang }) {
       return;
     }
     
-    const res = await cameraRef.current.takePictureAsync({  base64: true, quality: 0, imageType: ImageType.png });
+    const res = await cameraRef.current.takePictureAsync({  base64: true, quality: 0, imageType: "png" });
 
     if (res?.uri) {
       console.log("img uri: ", res.uri)
@@ -191,8 +217,9 @@ export default function App({ lang }) {
       console.log("compressed uri", compressed.uri);
 
       if (compressed?.uri) {
-        const d ={ time: new Date().toLocaleString(), uri: compressed.uri }; 
+        const d ={ time: new Date().toLocaleString(), uri: compressed.uri, info: null }; 
         setImages(imgs => imgs ? [ ...imgs,  d ]: [ d ]);
+        setAnalyse(true);
       }
     }
     setShowCam(false);
@@ -201,26 +228,26 @@ export default function App({ lang }) {
   return (
     <View style={styles.container}>
       <View style={{ flexDirection: "row" }}>
-        <TouchableOpacity style={styles.openCamera} onPress={toggleCam}>
+        <TouchableOpacity style={analyse ? styles.disabled : styles.openCamera} onPress={toggleCam} disabled={analyse || tracking}>
             <Text style={styles.openCameraText}>
               Capture
             </Text>
         </TouchableOpacity>  
 
-        <TouchableOpacity style={styles.openCamera} onPress={analyse}>
+        <TouchableOpacity style={analyse ? styles.disabled : styles.openCamera} onPress={trackDay} disabled={analyse || tracking}>
           <Text style={styles.lightText}>
-            Analyse
+            Track
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.openCamera} onPress={clearStore}>
+        <TouchableOpacity style={analyse ? styles.disabled : styles.openCamera} onPress={clearStore} disabled={analyse || tracking}>
           <Text style={styles.lightText}>
-            Clear Store
+            Clear
           </Text>
         </TouchableOpacity>
       </View>
       <View style={styles.preview}>
-        {loading && <Text style={styles.lightText}>Analysing...</Text>}
+        {analyse && <Text style={styles.lightText}>Analysing...</Text>}
         <ScrollView contentContainerStyle={styles.chatContent}>
           {images && images.map((img, i) => 
               <View key={i} style={{ padding: 10 }}>
@@ -228,19 +255,20 @@ export default function App({ lang }) {
                   <Text style={[styles.lightText, styles.date]}>{img.time}</Text>
                   <Image source={img.uri} key={i} style={styles.image} placeholder={"img"} contentFit="contain" />
                 </View>
-                {chatRes && chatRes.length > i && 
-                  <Text style={styles.lightText}>
-                    Analysis Response: {chatRes[i]}
-                  </Text>
-                }
+                <Text style={styles.lightText}>
+                  Analysis Response: { analyse && !img.info ? "" : img.info ? img.info : "error" }
+                </Text>
               </View>
             )
           }
+          <Text style={styles.highlightText}>
+            {result ? `Report: ${result}` : ""}
+          </Text>
         </ScrollView>
       </View> 
 
       {showCam && <View style={styles.cameraContainer}>
-        <Camera style={styles.camera} type={CameraType.back} ref={cameraRef} ration="1:1">
+        <CameraView style={styles.camera} facing={"back"} ref={cameraRef} ration="1:1">
           <View style={styles.topRight}>
             <TouchableOpacity onPress={toggleCam}>
               <Text style={styles.lightText}>Close</Text>
@@ -251,7 +279,7 @@ export default function App({ lang }) {
               <View style={styles.circle}></View>
             </TouchableOpacity>
           </View>
-        </Camera>
+        </CameraView>
       </View>}
     </View>
   );
@@ -266,6 +294,10 @@ const styles = StyleSheet.create({
   },
   lightText: {
     color: "#fff"
+  },
+  highlightText: {
+    color: "#FFC300",
+    padding: 20
   },
   image: {
     width: 200,
@@ -314,6 +346,14 @@ const styles = StyleSheet.create({
   openCamera: {
     flex: 0,
     backgroundColor: "#191970",
+    padding: 10,
+    borderRadius: 10,
+    margin: 10
+  },
+  disabled: {
+    flex: 0,
+    backgroundColor: "#191970",
+    opacity: 0.5,
     padding: 10,
     borderRadius: 10,
     margin: 10
