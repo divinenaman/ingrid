@@ -1,6 +1,6 @@
 # Ingrid
 
-### Capture the pic of your meals and get easy insights.
+### Capture your meals and get easy insights.
 
 # Setup
 - Add your `gemini` API key in `chatbot.js`
