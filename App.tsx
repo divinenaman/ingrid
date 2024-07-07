@@ -79,7 +79,8 @@ function ChatFood({ lang }) {
     }
     setChatRes("Loading!!");
     console.log("prompting..");
-    const res = await Chat.sendBase64ImgMsg(bot.current, base64String);
+    const t = new Date().toLocaleString();
+    const res = await Chat.sendBase64ImgMsg(bot.current, base64String, t);
     setChatRes(res);
   }
   
