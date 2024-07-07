@@ -52,7 +52,7 @@ async function sendTextMsg(bot, text, prefix_prompt_key = null) {
   console.log("gemini text : ");
   
   if (prefix_prompt_key && Object.hasOwn(PROMPTS, prefix_prompt_key)) {
-    text = PROMPTS[prefix_prompt_key](bot.lang) + text;
+    text = PROMPTS[prefix_prompt_key](bot.lang, "") + text;
   }
 
   const res = await bot.text.sendMessage(text);
