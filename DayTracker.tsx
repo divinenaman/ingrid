@@ -110,13 +110,13 @@ export default function App({ lang }) {
     setShowCam(true);
   }
 
-  const sendImgMsg = async (base64String) => {
+  const sendImgMsg = async (base64String, localTime) => {
     if (!bot.current) {
       console.log("bot not found!");
       return;
     }
     console.log("prompting..");
-    const res = await Chat.sendBase64ImgMsg(bot.current, base64String, "identity_meal");
+    const res = await Chat.sendBase64ImgMsg(bot.current, base64String, localStorage, "identity_meal");
     return res;
   }
   
@@ -189,7 +189,7 @@ export default function App({ lang }) {
           copy.push(img);
           continue;
         }
-        const res = await sendImgMsg(imgBase64);
+        const res = await sendImgMsg(imgBase64, img.time);
         copy.push({...img, info: res ? res : null });
       } catch (e) {
         console.log("error while analysing ", e);
