@@ -7,6 +7,8 @@ let SESSION_INIT_PROMPT = (l, t) => `You are nutritionist and a health expert gr
 
 Help him understand below image/Description with info, alternatives, limits. Time around which this meal was consumed is ${t}. Mention how to plan the next meals. Use ${l} as the language to explain.`
 
+const questions = [ "How many calories did I intake and in what forms ?", "Does this qualify as a balanced diet ? How does it affect my balance diet ?", "Should I have more meals and how to plan them ?", "Are there better alternatives ?" ]
+
 const PROMPTS = { "one_shot_vision_active": SESSION_INIT_PROMPT };
 
 async function syncPrompt() {
@@ -74,8 +76,16 @@ async function sendBase64ImgMsg(bot, base64String, localTime, promptKey = "one_s
     prompt = PROMPTS[promptKey];
   } 
   
-  const initPrompt = prompt(bot.lang, localTime);
+  let initPrompt = prompt(bot.lang, localTime);
   
+  if (questions.length > 0) {
+    initPrompt = initPrompt + "\n\n" + "Answer following questions accurately: \n"
+  }
+
+  for (const q of questions) {
+    initPrompt = initPrompt + q + "\n"
+  }
+
   console.log("gemini init prompt :", initPrompt);
 
   const imagePart = {
@@ -84,10 +94,22 @@ async function sendBase64ImgMsg(bot, base64String, localTime, promptKey = "one_s
       mimeType: "image/png"
     }
   }
+
+  const textPart = {
+    text: initPrompt
+  }
+
+  const initialPrompt = {
+    role: "user",
+    parts: [textPart, imagePart]
+  }
+
+  const history = { contents: [initialPrompt] }
+
   try {
-    const res = await bot.vision.generateContent([initPrompt, imagePart]);
-    const response = await res.response;
-    const t = response.text();
+    let res = await bot.vision.generateContent(history);
+    let response = await res.response;
+    let t = response.text();
 
     return t;
   } catch (e) {
