@@ -19,7 +19,7 @@ async function getValueFromStore(key) {
       console.log("no value in store");
       return null;
     }
-  } catch(e) {
+  } catch (e) {
     console.log("error getting value from store ", e);
     return null;
   }
@@ -41,7 +41,7 @@ export default function App({ lang }) {
 
   const [permission, requestPermission] = useCameraPermissions();
   const [showCam, setShowCam] = useState(false);
-  const [images, setImages] = useState<null | { time : string, uri: string }[]>(null);
+  const [images, setImages] = useState<null | { time: string, uri: string }[]>(null);
   const cameraRef = useRef(null);
   const [analyse, setAnalyse] = useState(false);
   const [tracking, setTracking] = useState(false);
@@ -51,13 +51,13 @@ export default function App({ lang }) {
     console.log({ permission });
     getDayImages();
   }, []);
-  
-  useEffect(() => {
-    bot.current = Chat.startSession(true, lang);
-  }, [ lang ]);
 
   useEffect(() => {
-    console.log({images});
+    bot.current = Chat.startSession(true, lang);
+  }, [lang]);
+
+  useEffect(() => {
+    console.log({ images });
     storeImages();
   }, [images]);
 
@@ -73,9 +73,9 @@ export default function App({ lang }) {
   }
 
   const getDayImages = async () => {
-    const key = getStoreKey(); 
+    const key = getStoreKey();
     const storedImages = await getValueFromStore(key);
-  
+
     if (storedImages) {
       try {
         const images = JSON.parse(storedImages); // expecting a array
@@ -91,7 +91,7 @@ export default function App({ lang }) {
   const storeImages = async () => {
     const key = getStoreKey();
     if (!images) return;
-    
+
     await saveToStore(key, JSON.stringify([...images]));
   }
 
@@ -116,86 +116,85 @@ export default function App({ lang }) {
       return;
     }
     console.log("prompting..");
-    const res = await Chat.sendBase64ImgMsg(bot.current, base64String, localStorage, "identity_meal");
+    const res = await Chat.sendBase64ImgMsg(bot.current, [base64String], localTime, "identity_meal");
     return res;
   }
-  
+
   const compressImge = async (uri: string) => {
     try {
       const res = await manipulateAsync(
-        uri, 
-        [ { resize: { width: 640, height: 480 } } ],
+        uri,
+        [{ resize: { width: 640, height: 480 } }],
         { format: SaveFormat.PNG, base64: true }
       );
 
       return {
         uri: res.uri
-      , base64: res.base64
+        , base64: res.base64
       }
-    } catch(e) {
+    } catch (e) {
       console.log("compressImage error: ", e);
       return null;
     }
   }
-  
+
   const imageBase64 = async (uri: string) => {
     try {
       const res = await manipulateAsync(
-        uri, 
+        uri,
         [],
         { format: SaveFormat.PNG, base64: true }
       );
 
       return res.base64;
-    } catch(e) {
+    } catch (e) {
       console.log("imageBase64 error: ", e);
       return null;
     }
   }
-  
+
   const trackDay = async () => {
     if (!images || images.length == 0) return;
     setTracking(true);
-    
+
     const meals = images.map((x, i) => x.info ? `Meal ${i + 1} :: Time : ${x.time}, Info: ${x.info}` : null).join("\n\n");
 
     console.log("meals => ", meals);
 
     const res = await Chat.sendTextMsg(bot.current, meals, "track_day");
-    
+
     setResult(res ? res : "error");
     setTracking(false);
   }
 
   const startAnalysis = async () => {
     if (!images) return;
-    
+
     const copy = []
 
     for (let i = 0; i < images.length; i++) {
-      try {  
+      try {
+        const img = images[i];
         console.log("analysing", img);
 
-        const img = images[i];
-        
         if (img.info) {
           copy.push(img);
           continue;
         }
 
         const imgBase64 = await imageBase64(img.uri);
-        
+
         if (!imageBase64) {
           copy.push(img);
           continue;
         }
         const res = await sendImgMsg(imgBase64, img.time);
-        copy.push({...img, info: res ? res : null });
+        copy.push({ ...img, info: res ? res : null });
       } catch (e) {
         console.log("error while analysing ", e);
       }
-    } 
-    
+    }
+
     setAnalyse(false);
     setImages([...copy]);
   }
@@ -206,19 +205,19 @@ export default function App({ lang }) {
       console.log("camera ref not found!");
       return;
     }
-    
-    const res = await cameraRef.current.takePictureAsync({  base64: true, quality: 0, imageType: "png" });
+
+    const res = await cameraRef.current.takePictureAsync({ base64: true, quality: 0, imageType: "png" });
 
     if (res?.uri) {
       console.log("img uri: ", res.uri)
-      
+
       const compressed = await compressImge(res.uri);
-      
+
       console.log("compressed uri", compressed.uri);
 
       if (compressed?.uri) {
-        const d ={ time: new Date().toLocaleString(), uri: compressed.uri, info: null }; 
-        setImages(imgs => imgs ? [ ...imgs,  d ]: [ d ]);
+        const d = { time: new Date().toLocaleString(), uri: compressed.uri, info: null };
+        setImages(imgs => imgs ? [...imgs, d] : [d]);
         setAnalyse(true);
       }
     }
@@ -227,16 +226,38 @@ export default function App({ lang }) {
 
   return (
     <View style={styles.container}>
+
+      <View style={styles.preview}>
+        {analyse && <Text style={styles.lightText}>Analysing...</Text>}
+        <ScrollView contentContainerStyle={styles.chatContent}>
+          {images && images.map((img, i) =>
+            <View key={i} style={{ padding: 10 }}>
+              <View style={[styles.left, styles.row]} key={i}>
+                <Text style={[styles.lightText, styles.date]}>{img.time}</Text>
+                <Image source={img.uri} key={i} style={styles.image} placeholder={"img"} contentFit="contain" />
+              </View>
+              <Text style={styles.lightText}>
+                Analysis Response: {analyse && !img.info ? "" : img.info ? img.info : "error"}
+              </Text>
+            </View>
+          )
+          }
+          <Text style={styles.highlightText}>
+            {result ? `Report: ${result}` : ""}
+          </Text>
+        </ScrollView>
+      </View>
+
       <View style={{ flexDirection: "row" }}>
         <TouchableOpacity style={analyse ? styles.disabled : styles.openCamera} onPress={toggleCam} disabled={analyse || tracking}>
-            <Text style={styles.openCameraText}>
-              Capture
-            </Text>
-        </TouchableOpacity>  
+          <Text style={styles.openCameraText}>
+            Add Image
+          </Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={analyse ? styles.disabled : styles.openCamera} onPress={trackDay} disabled={analyse || tracking}>
           <Text style={styles.lightText}>
-            Track
+            Analyse
           </Text>
         </TouchableOpacity>
 
@@ -246,26 +267,6 @@ export default function App({ lang }) {
           </Text>
         </TouchableOpacity>
       </View>
-      <View style={styles.preview}>
-        {analyse && <Text style={styles.lightText}>Analysing...</Text>}
-        <ScrollView contentContainerStyle={styles.chatContent}>
-          {images && images.map((img, i) => 
-              <View key={i} style={{ padding: 10 }}>
-                <View style={[styles.left, styles.row]} key={i}>
-                  <Text style={[styles.lightText, styles.date]}>{img.time}</Text>
-                  <Image source={img.uri} key={i} style={styles.image} placeholder={"img"} contentFit="contain" />
-                </View>
-                <Text style={styles.lightText}>
-                  Analysis Response: { analyse && !img.info ? "" : img.info ? img.info : "error" }
-                </Text>
-              </View>
-            )
-          }
-          <Text style={styles.highlightText}>
-            {result ? `Report: ${result}` : ""}
-          </Text>
-        </ScrollView>
-      </View> 
 
       {showCam && <View style={styles.cameraContainer}>
         <CameraView style={styles.camera} facing={"back"} ref={cameraRef} ration="1:1">
@@ -290,7 +291,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    width: "100%",
   },
   lightText: {
     color: "#fff"
