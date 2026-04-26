@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from "expo-image";
 import Chat from "./chatbot";
 import DayTracker from "./DayTracker";
@@ -19,33 +20,41 @@ export default function App() {
     console.log("sync complete");
     setIsSync(0);
   }
-  
+
   useEffect(() => {
     sync()
   }, [])
 
   return (
-    <View style={[ styles.container, { paddingTop: 40 }]}>
-      {isSync == 1 && <Text style={styles.lightText}>syncing...</Text>}
-      <View style={{ flexDirection: "row", padding: 20 }}>
-        <TouchableOpacity onPress={() => setActive("chat")}>
-          <Text style={styles.lightText}>Chat</Text>
-        </TouchableOpacity>
-        <Text style={[styles.lightText, { paddingHorizontal: 10 }]}>|</Text>
-        <TouchableOpacity onPress={() => setActive("tracker")}>
-          <Text style={styles.lightText}>Track Day</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={{ paddingLeft: 20 }} onPress={() => setLang(i => (i + 1) % langs.length)}>
-          <Text style={[styles.lightText, styles.highlight]}>
-            {langs[lang]}
-          </Text>
-        </TouchableOpacity>
+    <SafeAreaView style={{ flex: 1 }}>
+      <View style={[styles.container, { paddingTop: 40 }]}>
+        {isSync == 1 && <Text style={styles.lightText}>syncing...</Text>}
+        <View style={{ flexDirection: "row", padding: 20 }}>
+          <TouchableOpacity onPress={() => setActive("chat")}>
+            <Text style={styles.lightText}>Chat</Text>
+          </TouchableOpacity>
+          <Text style={[styles.lightText, { paddingHorizontal: 10 }]}>|</Text>
+          <TouchableOpacity onPress={() => setActive("tracker")}>
+            <Text style={styles.lightText}>Track Day</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={{ paddingLeft: 20 }} onPress={() => setLang(i => (i + 1) % langs.length)}>
+            <Text style={[styles.lightText, styles.highlight]}>
+              {langs[lang]}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {active == "tracker" && <DayTracker lang={langs[lang]} />}
+        {active == "chat" && <ChatFood lang={langs[lang]} />}
       </View>
-      {active == "tracker" && <DayTracker lang={langs[lang]} />} 
-      {active == "chat" && <ChatFood lang={langs[lang]} />}
-    </View>
+
+    </SafeAreaView>
   );
+}
+
+interface FoodImage {
+  uri: string,
+  str: string
 }
 
 function ChatFood({ lang }) {
@@ -53,14 +62,14 @@ function ChatFood({ lang }) {
 
   const [permission, requestPermission] = useCameraPermissions();
   const [showCam, setShowCam] = useState(false);
-  const [img, setImg] = useState<null | string>(null);
+  const [imgs, setImgs] = useState<[FoodImage]>([]);
   const cameraRef = useRef(null);
   const [chatRes, setChatRes] = useState<null | String>(null);
 
   useEffect(() => {
     console.log({ permission });
     bot.current = Chat.startSession(true, lang);
-  }, [ lang ]);
+  }, [lang]);
 
   const toggleCam = async () => {
     if (showCam) {
@@ -72,31 +81,34 @@ function ChatFood({ lang }) {
     setShowCam(true);
   }
 
-  const sendImgMsg = async (base64String) => {
+  const sendImgMsg = async () => {
     if (!bot.current) {
       console.log("bot not found!");
       return;
     }
     setChatRes("Loading!!");
     console.log("prompting..");
+
+    const base64Strings = imgs?.map(x => x.str);
+
     const t = new Date().toLocaleString();
-    const res = await Chat.sendBase64ImgMsg(bot.current, base64String, t);
+    const res = await Chat.sendBase64ImgMsg(bot.current, base64Strings, t);
     setChatRes(res);
   }
-  
+
   const compressImge = async (uri: string) => {
     try {
       const res = await manipulateAsync(
-        uri, 
-        [ { resize: { width: 640, height: 480 } } ],
+        uri,
+        [{ resize: { width: 640, height: 480 } }],
         { format: SaveFormat.PNG, base64: true }
       );
 
       return {
         uri: res.uri
-      , base64: res.base64
+        , base64: res.base64
       }
-    } catch(e) {
+    } catch (e) {
       console.log("compressImage error: ", e);
       return null;
     }
@@ -108,22 +120,27 @@ function ChatFood({ lang }) {
       console.log("camera ref not found!");
       return;
     }
-    
-    const res = await cameraRef.current.takePictureAsync({  base64: true, quality: 0, imageType: "png" });
+
+    const res = await cameraRef.current.takePictureAsync({ base64: true, quality: 0, imageType: "png" });
 
     if (res?.uri) {
       console.log("img uri: ", res.uri)
-      
+
       const compressed = await compressImge(res.uri);
-      
+
       console.log("compressed uri", compressed.uri);
 
       if (compressed?.uri) {
-        setImg(compressed.uri);
-        sendImgMsg(compressed.base64);
+        setImgs(a => [...a, { uri: compressed.uri, str: compressed.base64 }]);
+        // sendImgMsg(compressed.base64);
       }
     }
     setShowCam(false);
+  }
+
+  const removeImage = (i) => {
+    if (imgs.length <= i) return;
+    setImgs(x => x.filter((x, j) => i != j))
   }
 
   return (
@@ -131,15 +148,27 @@ function ChatFood({ lang }) {
       <ScrollView style={styles.chat} contentContainerStyle={styles.chatContent}>
         <Text style={styles.lightText}>Your friendly neighborhood AI!</Text>
         <Text style={styles.lightText}>Converse using Images!</Text>
-        {img && <Image source={img} style={styles.image} contentFit="contain" />}
-
+        {imgs?.length > 0 &&
+          imgs.map((d, i) =>
+            <TouchableOpacity key={i} style={{ flex: 1 }} onPress={() => removeImage(i)}>
+              <Image source={d.uri} style={styles.image} contentFit="contain" />
+            </TouchableOpacity>
+          )
+        }
         {chatRes && <Text style={styles.lightText}>{chatRes}</Text>}
       </ScrollView>
-      <TouchableOpacity style={styles.openCamera} onPress={toggleCam}>
-        <Text style={styles.openCameraText}>
-          {showCam ? "Close" : "Open"} Camera
-        </Text>
-      </TouchableOpacity>
+      <View style={{ flexDirection: "row" }}>
+        <TouchableOpacity style={styles.openCamera} onPress={toggleCam}>
+          <Text style={styles.openCameraText}>
+            {showCam ? "Close Camera" : "Add Image"}
+          </Text>
+        </TouchableOpacity>
+        {!showCam && imgs?.length > 0 && <TouchableOpacity style={styles.openCamera} onPress={sendImgMsg}>
+          <Text style={styles.openCameraText}>
+            Analyse
+          </Text>
+        </TouchableOpacity>}
+      </View>
       {showCam && <View style={styles.cameraContainer}>
         <CameraView style={styles.camera} facing="back" ref={cameraRef} ration="1:1">
           <View style={styles.topRight}>
