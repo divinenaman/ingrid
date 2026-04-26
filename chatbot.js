@@ -1,6 +1,6 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from '@google/genai';
 
-const genAI = new GoogleGenerativeAI(process.env.EXPO_PUBLIC_GEMINI_KEY);
+const genAI = new GoogleGenAI({ apiKey: process.env.EXPO_PUBLIC_GEMINI_KEY });
 
 let SESSION_INIT_PROMPT = (l, t) => `You are nutritionist and a health expert graduated from Standford university. You give people easy to understand information around food along with healthy eating habits. You have helped many people lead a balanced diet. A friend has contacted you to help him with questions related to food. Please help him with any query he has, he doesn't know anything about being healthy. Please give answers as direct tips and suggestions with good explanation. Answer all the questions with an accurate resolution, take safe assumptions as required. Give actual numbers in easy to understand measurement like 2 tablespoon. Explain how much the meal makes up for the balanced diet and what you can eat for the rest of the day. At the last provide a summary with a direct answer to the question without any nuance.
 
@@ -30,8 +30,6 @@ async function syncPrompt() {
 function startSession(vision = false, lang = "english") {
   console.log("start chat session :", vision);
 
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
   const history =
     [{
       role: "user"
@@ -43,9 +41,18 @@ function startSession(vision = false, lang = "english") {
     }
     ]
 
+  const chat = async (contents) => {
+    const resp = await genAI.models.generateContent({ model: "gemini-flash-latest", contents });
+
+    history.push({ role: "user", parts: contents });
+    history.push({ role: "model", parts: resp.text });
+
+    return resp.text;
+  }
+
   return {
-    text: model.startChat({ history }),
-    vision: model,
+    text: chat,
+    vision: chat,
     lang
   }
 }
@@ -59,11 +66,9 @@ async function sendTextMsg(bot, text, prefix_prompt_key = null) {
     text = PROMPTS[prefix_prompt_key](bot.lang, "") + text;
   }
 
-  const res = await bot.text.sendMessage(text);
-  const response = await res.response;
-  const t = response.text();
+  const res = await bot.text(text);
 
-  return t;
+  return res;
 }
 
 async function sendBase64ImgMsg(bot, base64Strings, localTime, promptKey = "one_shot_vision_active") {
@@ -110,15 +115,10 @@ async function sendBase64ImgMsg(bot, base64Strings, localTime, promptKey = "one_
     parts: [textPart, ...imageParts]
   }
 
-  const history = { contents: [initialPrompt] }
-
   try {
-    let res = await bot.vision.generateContent(history);
-    let response = await res.response;
-    console.log(response);
-    let t = response.text();
+    let res = await bot.vision([initialPrompt]);
 
-    return t;
+    return res;
   } catch (e) {
     console.log("sendBase64ImaMsg error: ", e, initPrompt.length, " + ", base64Strings.length);
     return "error";
