@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { Image } from "expo-image";
 import Chat from "./chatbot";
 import DayTracker from "./DayTracker";
@@ -25,7 +25,7 @@ export default function App() {
     sync()
   }, [])
 
-  return (
+  return (<SafeAreaProvider>
     <SafeAreaView style={{ flex: 1 }}>
       <View style={[styles.container, { paddingTop: 40 }]}>
         {isSync == 1 && <Text style={styles.lightText}>syncing...</Text>}
@@ -49,7 +49,7 @@ export default function App() {
       </View>
 
     </SafeAreaView>
-  );
+  </SafeAreaProvider>);
 }
 
 interface FoodImage {
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
     padding: 20
   },
   openCamera: {
-    flex: 0,
+    flex: 1,
     backgroundColor: "#191970",
     padding: 10,
     borderRadius: 10,
